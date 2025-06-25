@@ -148,6 +148,8 @@ impl UserControl{
                         },
                         Action::DROP => {
                             game.hard_drop();
+                            self.touching = false;
+                            self.lock_delay = 0;
                         },
                         Action::DOWN => {
                             self.dropping = true;
@@ -194,7 +196,7 @@ impl UserControl{
         }
 
         //println!("{} {}", self.frame, self._gravity_frame);
-        let calculated_gravity = max(1, 48 - (game.get_level() * 5));
+        let calculated_gravity : u32 = max(1, 48 - (game.get_level() as i32 * 5)) as u32;
         let gravity_frame = if self.dropping { calculated_gravity / self.handling.sdf} else {calculated_gravity}; //self.handling.gravity_frame
         if self.frame - self.gravity_frame >= gravity_frame{
             self.gravity_frame = self.frame;

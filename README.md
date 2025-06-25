@@ -1,7 +1,7 @@
 # Tetris but it's Rust
 
 This is my first rust program, so it's probably bad.
-Mostly playable, there is a bug, it tries to place a the piece just summoned, it's rare 
+But it works.
 
 ## Features
 
