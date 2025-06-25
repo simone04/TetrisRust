@@ -15,6 +15,17 @@ struct KeyMap {
     map: HashMap<Keycode, Action>,
 }
 
+struct UpdateReport{
+    placed : bool,
+    lines_cleared: Vec<i32>,
+}
+
+struct ActionReport{
+    touched_wall : i32,
+    placed : bool,
+    lines_cleared: Vec<i32>,
+}
+
 impl KeyMap {
     fn new() -> Self {
         let mut map = HashMap::new();
@@ -122,7 +133,7 @@ impl UserControl{
         }
     }
 
-    pub fn action(&mut self, game : &mut Game, key : Keycode, pressed : bool){
+    pub fn action(&mut self, game : &mut Game, key : Keycode, pressed : bool) -> bool{
         let action_option = self.key_map.get(&key);
         match action_option {
             Some(val) => {
@@ -147,7 +158,9 @@ impl UserControl{
                             );
                         },
                         Action::DROP => {
-                            game.hard_drop();
+                            if game.hard_drop(){
+                                return true;
+                            }
                             self.touching = false;
                             self.lock_delay = 0;
                         },
@@ -179,10 +192,10 @@ impl UserControl{
             }
             None => (),
         }
-
+        return false;
     }
 
-    pub fn update(&mut self, game : &mut Game){
+    pub fn update(&mut self, game : &mut Game) -> bool{
         self.frame += 1;
 
         self.hold += 1;
@@ -190,7 +203,9 @@ impl UserControl{
         if self.touching{
             self.lock_delay += 1;
             if self.lock_delay >= self.handling.lock_delay{
-                game.place();
+                if game.place(){
+                    return true;
+                }
                 self.lock_delay = 0;
             }
         }
@@ -223,6 +238,7 @@ impl UserControl{
             },
             _ => (),
         }
+        return false;
     }
 
 }

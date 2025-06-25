@@ -296,11 +296,11 @@ impl<'a> Game<'a>{
         self.current_position = (4,0);
     }
 
-    pub fn hard_drop(&mut self){
+    pub fn hard_drop(&mut self) -> bool{
         while self.drop(){
 
         }
-        self.place();
+        return self.place();
     }
 
     pub fn soft_drop(&mut self){
@@ -395,9 +395,12 @@ impl<'a> Game<'a>{
         self.score += score * (l+1);
     }
 
-    pub fn place(&mut self){
+    pub fn place(&mut self) -> bool{
         for (t_x,t_y) in self.current_piece.rotations[self.current_rotation]{
             let (x, y) = (self.current_position.0 + t_x, self.current_position.1 - t_y);
+            if y<0{
+                return true;
+            }
 
             self.board[y as usize][x as usize] = self.current_piece.index
         }
@@ -409,7 +412,7 @@ impl<'a> Game<'a>{
         let x = self.get_next();
         self.summon_piece(x);
         self.already_switched = false;
-
+        return false;
         //self.printBoard();
     }
 

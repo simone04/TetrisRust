@@ -3,6 +3,7 @@ mod user_controls;
 
 use sdl2::render::Canvas;
 use sdl2::video::Window;
+use sdl2::EventPump;
 use tetris_engine::*;
 use user_controls::*;
 
@@ -19,7 +20,7 @@ use sdl2::ttf::Font;
 const SQUARE :u32 = 30;
 const COLUMNS : u32 = 10;
 const ROWS : u32 = 20;
-const PADDING : u32 = 10;
+const PADDING : u32 = 20;
 
 const LEFT_AREA_WIDTH : u32 = 150;
 const CENTER_AREA_WIDTH : u32 = PADDING*2 + BOARD_WIDTH;
@@ -40,6 +41,8 @@ const HOLD_PADDING: u32 = 10;
 
 const NEXTPIECE_HEIGHT : u32 = HOLD_SQUARE_SIZE * 15;
 
+const GHOST_COLOR : Color = Color::RGBA(255,255,255, 128);
+
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -48,53 +51,60 @@ fn main() {
         .position_centered()
         .build()
         .unwrap();
-
+    let font_path = "./src/DejaVuSans.ttf";
+    let ttf_context = sdl2::ttf::init().unwrap();
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     let mut events = sdl_context.event_pump().unwrap();
-
-    let mut game: Game = Game::new();
-    let mut userControl = UserControl::new();
-
-    let ttf_context = sdl2::ttf::init().unwrap();
-    let font_path = "./src/DejaVuSans.ttf";
     let font = ttf_context.load_font(font_path, 24).unwrap();
 
+    loop{
+        let mut game: Game = Game::new();
+        let mut userControl = UserControl::new();
 
-    let mut frame : u32 = 0;
+        let mut offset = (0,  0);
+        
+        let stop = 'running : loop  {
+            for event in events.poll_iter() {
+                match event {
+                    Event::Quit {..} | 
+                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running true,
+                    Event::KeyDown { keycode: Some(Keycode::R), .. } => break 'running false,
 
-    'running: loop {
-        frame += 1;
-
-        for event in events.poll_iter() {
-            match event {
-                Event::Quit {..} | 
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
-
-                Event::KeyDown { keycode: Some(key), .. } => {
-                    userControl.action(&mut game, key, true);
-                },
-                Event::KeyUp { keycode: Some(key), .. } => {
-                    userControl.action(&mut game, key, false);
-                },
-                _ => {}
+                    Event::KeyDown { keycode: Some(key), .. } => {
+                        if userControl.action(&mut game, key, true){
+                            break 'running false
+                        }
+                    },
+                    Event::KeyUp { keycode: Some(key), .. } => {
+                        if userControl.action(&mut game, key, false){
+                            break 'running false
+                        }
+                    },
+                    _ => {}
+                }
             }
+            if userControl.update(&mut game){
+                break 'running false;
+            }
+
+            canvas.set_draw_color(Color::RGB(100, 100, 100));
+            canvas.clear();
+
+            renderBoard(&mut canvas, &game, offset);
+            drawHold(&mut canvas, &game);
+            drawNexts(&mut canvas, &game);
+            drawLines(&mut canvas, &game, &font);
+
+            canvas.present();
+            std::thread::sleep(Duration::from_millis(16)); // 60 FPS
+        };
+
+        if stop{
+            break;
         }
-        userControl.update(&mut game);
-
-
-        canvas.set_draw_color(Color::RGB(100, 100, 100));
-        canvas.clear();
-
-        render_side(&mut canvas, &game);
-        renderBoard(&mut canvas, &game);
-        drawHold(&mut canvas, &game);
-        drawNexts(&mut canvas, &game);
-        drawLines(&mut canvas, &game, &font);
-
-        canvas.present();
-        std::thread::sleep(Duration::from_millis(16)); // 60 FPS
     }
 }
+
 
 
 fn draw_square(canvas: &mut Canvas<Window>, (x, y) : (i16, i16), color: Color, square : i16, position : (i16, i16)) {
@@ -116,36 +126,44 @@ fn draw_square(canvas: &mut Canvas<Window>, (x, y) : (i16, i16), color: Color, s
     
 }
 
-fn render_side(canvas: &mut Canvas<Window>, game : &Game){
-    
-
-}
-
-fn renderPiece(canvas: &mut Canvas<Window>, game : &Game, (pos_x,pos_y) : (i8, i8), tetromino : &Tetromino, color : Color){
+fn renderPiece(canvas: &mut Canvas<Window>, (pos_x,pos_y) : (i8, i8), tetromino : &Tetromino, color : Color, position : (i16, i16)){
     for (x, y) in tetromino{
         let pos  = ((x + pos_x) as i16, (pos_y - y) as i16);
-        draw_square(canvas, pos, color, SQUARE as i16, ((LEFT_AREA_WIDTH + PADDING) as i16, PADDING as i16));
+        draw_square(canvas, pos, color, SQUARE as i16, position);
     }
 }
 
 
 
-fn renderBoard(canvas: &mut Canvas<Window>, game : &Game){
-    let rect = Rect::new((PADDING + LEFT_AREA_WIDTH) as i32, PADDING as i32, BOARD_WIDTH, BOARD_HEIGHT);
+fn renderBoard(canvas: &mut Canvas<Window>, game : &Game, offset : (i32, i32)){
+    let rect = Rect::new(
+        (PADDING + LEFT_AREA_WIDTH) as i32 + offset.0, 
+        PADDING as i32 + offset.1, 
+        BOARD_WIDTH, BOARD_HEIGHT
+    );
     canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.draw_rect(rect);
+
+    let position = (rect.x as i16, rect.y as i16);
 
     for y in 0..20{
         for x in 0..10{
             if game.board[y][x] != 0 {
                 let color = getColor(game.board[y][x]);
-                draw_square(canvas, (x as i16, y as i16), Color::RGB(color.r, color.g, color.b), SQUARE as i16, ((LEFT_AREA_WIDTH + PADDING) as i16, PADDING as i16));
+                draw_square(
+                    canvas, 
+                    (x as i16, y as i16), 
+                    color, 
+                    SQUARE as i16, 
+                    position
+                );
             }
         }
     }
-    
-    renderPiece(canvas, game, game.get_ghost(), &game.current_tetromino(), Color::RGBA(255,255,255, 128));
-    renderPiece(canvas, game, game.current_position, &game.current_tetromino(), getColor(game.current_piece.index));    
+    let tetromino = &game.current_tetromino();
+
+    renderPiece(canvas, game.get_ghost(), tetromino, GHOST_COLOR, position);
+    renderPiece(canvas, game.current_position, tetromino, getColor(game.current_piece.index), position);    
 }
 
 fn getColor(square : u8) -> Color{
@@ -206,8 +224,6 @@ fn drawNexts(canvas: &mut Canvas<Window>, game : &Game){
             draw_square(canvas, (1 + x as i16, 1 + (i as i16)*3 - y as i16), color, HOLD_SQUARE_SIZE as i16, pos);
         }
     }
-
-
 
     canvas.set_draw_color(Color::WHITE);
     canvas.draw_rect(rect);
